@@ -20,7 +20,7 @@ main{flex:1;overflow-y:auto;padding:16px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:12px}
 .mut{color:var(--mut);font-size:14px}
 label{display:block;font-size:14px;margin:12px 0 4px}
-input{width:100%;padding:14px;font-size:16px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
+input,select{width:100%;padding:14px;font-size:16px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
 .btn{width:100%;padding:16px;margin-top:14px;font-size:16px;font-weight:600;border:0;border-radius:12px;background:var(--pri);color:#fff}
 #msg{margin-top:12px;font-size:15px}
 .ok{color:var(--ing)}.err{color:var(--gas)}
@@ -28,6 +28,11 @@ nav{display:flex;background:var(--card);border-top:1px solid var(--bd);padding-b
 nav button{flex:1;padding:10px 0;border:0;background:none;color:var(--mut);font-size:11px}
 nav button span{display:block;font-size:22px}
 nav button.activa{color:var(--pri);font-weight:700}
+
+.seg{display:flex;gap:8px}
+.seg button{flex:1;padding:14px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:var(--tx);font-weight:600;font-size:16px}
+.seg .g.activa{border-color:var(--gas);color:var(--gas)}
+.seg .i.activa{border-color:var(--ing);color:var(--ing)}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
@@ -36,7 +41,25 @@ nav button.activa{color:var(--pri);font-weight:700}
     <div class="card"><b>Estado de la conexión</b><p id="estado" class="mut">Verificando…</p></div>
     <div class="card mut">El panel financiero se construye en la etapa 8.</div>
   </section>
-  <section class="vista" id="registrar"><div class="card mut">Los formularios de ingresos y gastos se construyen en la etapa 6.</div></section>
+  <section class="vista" id="registrar">
+    <div class="seg"><button id="sg" class="g activa">Gasto</button><button id="si" class="i">Ingreso</button></div>
+    <div class="card" style="margin-top:12px">
+      <label for="fFecha">Fecha</label><input id="fFecha" type="date">
+      <label for="fDesc">Descripción</label><input id="fDesc" type="text" autocomplete="off">
+      <label for="fCat">Categoría</label><select id="fCat"></select>
+      <div class="g-only"><label for="fSub">Subcategoría</label><input id="fSub" list="subs" autocomplete="off"><datalist id="subs"></datalist></div>
+      <label for="fValor">Valor (COP)</label><input id="fValor" type="text" inputmode="numeric" placeholder="0">
+      <div class="g-only"><label for="fMedio">Medio de pago</label>
+        <select id="fMedio"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta débito</option><option>Tarjeta crédito</option></select>
+        <label for="fTipoG">Tipo de gasto</label>
+        <select id="fTipoG"><option>Variable</option><option>Fijo</option><option>Extraordinario</option></select></div>
+      <div class="i-only" style="display:none"><label for="fCuenta">Cuenta o medio de recepción</label><input id="fCuenta" list="cuentas" autocomplete="off"><datalist id="cuentas"><option>Efectivo</option><option>Cuenta bancaria</option></datalist></div>
+      <label for="fEstado">Estado</label><select id="fEstado"><option>Realizado</option><option>Pendiente</option></select>
+      <label for="fObs">Observaciones</label><input id="fObs" type="text" autocomplete="off">
+      <button class="btn" id="bGuardar">Guardar</button>
+      <div id="msgR"></div>
+    </div>
+  </section>
   <section class="vista" id="movimientos"><div class="card mut">La lista, edición y eliminación se construyen en la etapa 7.</div></section>
   <section class="vista" id="presupuesto"><div class="card mut">Presupuestos y obligaciones se construyen en la etapa 9.</div></section>
   <section class="vista" id="informes"><div class="card mut">Los informes se construyen en la etapa 8.</div></section>
@@ -103,6 +126,71 @@ $('#bAjustes').onclick=()=>ir('ajustes');
 $('#url').value=cfg().url||'';
 $('#token').value=cfg().token||'';
 if(cfg().url){ir('inicio');verificar()}else{ir('ajustes');verificar()}
+
+/* ===== Etapa 6: formularios ===== */
+let tipoReg='Gasto',cats=[],sincronizando=false;
+const hoy=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
+const cop=n=>'$ '+Number(n).toLocaleString('es-CO');
+const leerCola=()=>JSON.parse(localStorage.getItem('cola')||'[]');
+
+async function cargarCats(){
+  try{const r=await api('listar',{hoja:'CATEGORÍAS'});if(r.ok){cats=r.datos;localStorage.setItem('cats',JSON.stringify(cats))}}catch(e){}
+  if(!cats.length)cats=JSON.parse(localStorage.getItem('cats')||'[]');
+  pintarCats();
+}
+function pintarCats(){
+  const nombres=[...new Set(cats.filter(c=>c.Tipo===tipoReg&&c.Activa==='SÍ').map(c=>c['Categoría']))];
+  $('#fCat').innerHTML=nombres.map(n=>'<option>'+n+'</option>').join('');
+  pintarSubs();
+}
+function pintarSubs(){
+  const c=$('#fCat').value;
+  $('#subs').innerHTML=cats.filter(x=>x.Tipo==='Gasto'&&x['Categoría']===c&&x['Subcategoría']).map(x=>'<option value="'+x['Subcategoría']+'">').join('');
+}
+function setTipo(t){
+  tipoReg=t;
+  document.querySelectorAll('.g-only').forEach(e=>e.style.display=t==='Gasto'?'':'none');
+  document.querySelectorAll('.i-only').forEach(e=>e.style.display=t==='Ingreso'?'':'none');
+  $('#sg').classList.toggle('activa',t==='Gasto');$('#si').classList.toggle('activa',t==='Ingreso');
+  pintarCats();
+}
+async function sync(){
+  if(sincronizando)return leerCola().length;
+  sincronizando=true;
+  try{
+    let cola=leerCola();
+    while(cola.length){
+      const r=await api('agregar',{hoja:cola[0].hoja,datos:cola[0].datos});
+      if(!r.ok)break;
+      cola.shift();localStorage.setItem('cola',JSON.stringify(cola));
+    }
+  }catch(e){}
+  sincronizando=false;
+  return leerCola().length;
+}
+$('#sg').onclick=()=>setTipo('Gasto');
+$('#si').onclick=()=>setTipo('Ingreso');
+$('#fCat').onchange=pintarSubs;
+$('#fValor').oninput=e=>{const d=e.target.value.replace(/\D/g,'');e.target.value=d?Number(d).toLocaleString('es-CO'):''};
+$('#bGuardar').onclick=async()=>{
+  const m=$('#msgR'),valor=Number($('#fValor').value.replace(/\D/g,''));
+  if(!$('#fDesc').value.trim()||!valor||!$('#fCat').value){m.className='err';m.textContent='Completa descripción, categoría y valor.';return}
+  const g=tipoReg==='Gasto';
+  const datos={ID:crypto.randomUUID(),Fecha:$('#fFecha').value,'Descripción':$('#fDesc').value.trim(),'Categoría':$('#fCat').value,Valor:valor,Observaciones:$('#fObs').value.trim(),Estado:$('#fEstado').value};
+  if(g){datos['Subcategoría']=$('#fSub').value.trim();datos['Medio de pago']=$('#fMedio').value;datos.Tipo=$('#fTipoG').value}
+  else datos.Cuenta=$('#fCuenta').value.trim();
+  const cola=leerCola();cola.push({hoja:g?'GASTOS':'INGRESOS',datos:datos});
+  localStorage.setItem('cola',JSON.stringify(cola));
+  ['#fDesc','#fValor','#fSub','#fObs'].forEach(i=>$(i).value='');
+  m.className='';m.textContent='Guardando…';
+  const pend=await sync();
+  if(pend){m.className='';m.textContent='Guardado en el celular. Se enviará al volver el internet ('+pend+' pendiente/s).'}
+  else{m.className='ok';m.textContent='✔ '+(g?'Gasto':'Ingreso')+' guardado: '+cop(valor)}
+};
+$('#bProbar').addEventListener('click',()=>setTimeout(()=>{cargarCats();sync()},1500));
+window.addEventListener('online',sync);
+$('#fFecha').value=hoy();
+if(cfg().url){cargarCats();sync()}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
