@@ -42,13 +42,32 @@ nav button.activa{color:var(--pri);font-weight:700}
 #modal.abierto{display:flex}
 .hoja{background:var(--card);width:100%;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
 .btn.sec{background:var(--bd);color:var(--tx)}.btn.del{background:var(--gas)}
+
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.kpi{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px}
+.kpi small{display:block;color:var(--mut);font-size:12px}.kpi b{font-size:17px}
+.card h4{margin:0 0 8px;font-size:15px}
+.b{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:13px}.b span{width:62px}
+.bt{flex:1;background:var(--bg);border-radius:6px;height:14px;overflow:hidden}.bt i{display:block;height:100%}
+.b b{min-width:92px;text-align:right}
+.pie{width:140px;height:140px;border-radius:50%;margin:8px auto 12px}
+.leg div{display:flex;justify-content:space-between;font-size:13px;margin:4px 0}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.cols{display:flex;align-items:flex-end;gap:6px}
+.c{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-size:10px;color:var(--mut)}
+.c i{width:100%;background:var(--pri);border-radius:6px 6px 0 0;min-height:2px}
+.pb{height:10px;border-radius:5px;background:var(--bg);overflow:hidden}.pb i{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:8px 4px;text-align:right;border-bottom:1px solid var(--bd)}
+td:first-child,th:first-child{text-align:left}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
 <main>
   <section class="vista" id="inicio">
-    <div class="card"><b>Estado de la conexión</b><p id="estado" class="mut">Verificando…</p></div>
-    <div class="card mut">El panel financiero se construye en la etapa 8.</div>
+    <input id="dMes" type="month">
+    <div id="dash"><p class="mut">Cargando…</p></div>
+    <p id="estado" class="mut" style="margin-top:12px">Verificando…</p>
   </section>
   <section class="vista" id="registrar">
     <div class="seg"><button id="sg" class="g activa">Gasto</button><button id="si" class="i">Ingreso</button></div>
@@ -80,7 +99,10 @@ nav button.activa{color:var(--pri);font-weight:700}
     <div id="lista"></div>
   </section>
   <section class="vista" id="presupuesto"><div class="card mut">Presupuestos y obligaciones se construyen en la etapa 9.</div></section>
-  <section class="vista" id="informes"><div class="card mut">Los informes se construyen en la etapa 8.</div></section>
+  <section class="vista" id="informes">
+    <div class="fila"><select id="iAnio"></select><button class="btn" id="bCsv" style="margin:0;width:auto;padding:0 16px">Exportar Excel</button></div>
+    <div class="card" style="margin-top:12px;overflow-x:auto"><h4>Resumen anual (COP)</h4><table id="iTab"></table></div>
+  </section>
   <section class="vista" id="ajustes">
     <div class="card">
       <b>Conexión con Google Sheets</b>
@@ -113,7 +135,7 @@ const cfg=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){r
 function ir(v){
   document.querySelectorAll('.vista').forEach(e=>e.classList.toggle('activa',e.id===v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('activa',b.dataset.v===v));
-  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();
+  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();if((v==='inicio'||v==='informes')&&cfg().url)cargarDash();
 }
 
 async function api(accion,extra){
@@ -214,7 +236,7 @@ $('#bGuardar').onclick=async()=>{
 $('#bProbar').addEventListener('click',()=>setTimeout(()=>{cargarCats();sync()},1500));
 window.addEventListener('online',sync);
 $('#fFecha').value=hoy();
-if(cfg().url){cargarCats();sync()}
+if(cfg().url){cargarCats();sync().then(cargarDash)}
 
 /* ===== Etapa 7: movimientos ===== */
 let movs=[],editando=null;
@@ -299,6 +321,114 @@ $('#mQ').oninput=pintarMovs;
 ['#mMes','#mTipo','#mCat'].forEach(i=>$(i).onchange=pintarMovs);
 $('#mTodo').onclick=()=>{$('#mMes').value='';pintarMovs()};
 $('#mMes').value=hoy().slice(0,7);
+
+/* ===== Etapa 8: dashboard e informes ===== */
+const D={ing:[],gas:[],obl:[],pre:[]};
+const PAL=['#0f766e','#2563eb','#d97706','#9333ea','#dc2626','#0891b2','#65a30d','#db2777','#ca8a04','#7c3aed'];
+const MESES=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const mesDe=m=>String(m.Fecha).slice(0,7);
+const suma=a=>a.reduce((t,m)=>t+Number(m.Valor||0),0);
+const real=a=>a.filter(m=>m.Estado!=='Pendiente');
+const noAhorro=m=>m['Categoría']!=='Ahorro';
+const nomMes=k=>MESES[+k.slice(5)-1]+' '+k.slice(2,4);
+function ultimosMeses(mes,n){
+  let p=mes.split('-').map(Number),y=p[0],m=p[1],r=[];
+  for(let i=0;i<n;i++){r.unshift(y+'-'+String(m).padStart(2,'0'));m--;if(m===0){m=12;y--}}
+  return r;
+}
+async function cargarDash(){
+  try{
+    const r=await Promise.all(['INGRESOS','GASTOS','OBLIGACIONES','PRESUPUESTO'].map(h=>api('listar',{hoja:h})));
+    if(r.some(x=>!x.ok))throw new Error('listar');
+    D.ing=r[0].datos;D.gas=r[1].datos;D.obl=r[2].datos;D.pre=r[3].datos;
+    pintarDash();pintarInforme();
+  }catch(e){$('#dash').innerHTML='<div class="card err">No se pudo cargar el panel. Revisa tu conexión.</div>'}
+}
+const kpi=(n,v,c)=>'<div class="kpi"><small>'+n+'</small><b style="color:'+(c||'inherit')+'">'+cop(v)+'</b></div>';
+const barra=(n,v,mx,c)=>'<div class="b"><span>'+n+'</span><div class="bt"><i style="width:'+(mx&&v?Math.max(v/mx*100,2):0)+'%;background:'+c+'"></i></div><b>'+cop(v)+'</b></div>';
+
+function pintarDash(){
+  const mes=$('#dMes').value;
+  if(!mes)return;
+  const I=real(D.ing).filter(m=>mesDe(m)===mes),G=real(D.gas).filter(m=>mesDe(m)===mes);
+  const ahorro=suma(G.filter(m=>!noAhorro(m))),G2=G.filter(noAhorro);
+  const ti=suma(I),tg=suma(G2),bal=ti-tg-ahorro;
+  const fijos=suma(G2.filter(m=>m.Tipo==='Fijo')),vars=suma(G2.filter(m=>m.Tipo==='Variable'));
+  const obl=D.obl.reduce((t,o)=>t+Number(o['Saldo actual']||0),0);
+  let h='<div class="kpis">'+kpi('Ingresos del mes',ti,'var(--ing)')+kpi('Gastos del mes',tg,'var(--gas)')+
+    kpi('Balance disponible',bal,bal<0?'var(--gas)':'var(--ing)')+kpi('Ahorro del mes',ahorro)+
+    kpi('Gastos fijos',fijos)+kpi('Gastos variables',vars)+kpi('Obligaciones (saldo)',obl)+'</div>';
+
+  // 1) Ingresos vs gastos
+  const mx=Math.max(ti,tg,1);
+  h+='<div class="card"><h4>Ingresos vs gastos</h4>'+barra('Ingresos',ti,mx,'var(--ing)')+barra('Gastos',tg,mx,'var(--gas)')+'</div>';
+
+  // 2) Gastos por categoría
+  const porCat={};G2.forEach(m=>{porCat[m['Categoría']]=(porCat[m['Categoría']]||0)+Number(m.Valor)});
+  let cats2=Object.keys(porCat).map(k=>[k,porCat[k]]).sort((a,b)=>b[1]-a[1]);
+  if(cats2.length>8){const r=cats2.slice(7).reduce((t,x)=>t+x[1],0);cats2=cats2.slice(0,7).concat([['Otras categorías',r]])}
+  h+='<div class="card"><h4>Gastos por categoría</h4>';
+  if(tg){
+    let acc=0,grad=[];
+    cats2.forEach((x,i)=>{const a=acc/tg*360;acc+=x[1];grad.push(PAL[i%PAL.length]+' '+a+'deg '+(acc/tg*360)+'deg')});
+    h+='<div class="pie" style="background:conic-gradient('+grad.join(',')+')"></div><div class="leg">'+
+      cats2.map((x,i)=>'<div><span><i style="background:'+PAL[i%PAL.length]+'"></i>'+esc(x[0])+'</span><span>'+cop(x[1])+' · '+Math.round(x[1]/tg*100)+'%</span></div>').join('')+'</div>';
+  }else h+='<p class="mut">Sin gastos en este mes.</p>';
+  h+='</div>';
+
+  // 3) Evolución 6 meses
+  const ms=ultimosMeses(mes,6),gm=ms.map(k=>suma(real(D.gas).filter(m=>mesDe(m)===k&&noAhorro(m)))),mxg=Math.max.apply(null,gm.concat([1]));
+  h+='<div class="card"><h4>Gastos de los últimos 6 meses</h4><div class="cols">'+
+    gm.map((v,i)=>'<div class="c"><small>'+(v?Math.round(v/1000)+'k':'')+'</small><i style="height:'+Math.round(v/mxg*110)+'px"></i><small>'+nomMes(ms[i])+'</small></div>').join('')+'</div></div>';
+
+  // 4) Presupuesto vs real
+  const P=D.pre.filter(x=>String(x.Mes).slice(0,7)===mes);
+  h+='<div class="card"><h4>Presupuesto vs gasto real</h4>';
+  if(P.length)h+=P.map(x=>{
+    const g=porCat[x['Categoría']]||0,lim=Number(x['Límite']||0),pc=lim?g/lim*100:0;
+    const col=pc>=100?'var(--gas)':pc>=80?'#f59e0b':'var(--ing)';
+    return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(x['Categoría'])+(pc>=100?' ⚠️ superado':pc>=80?' ⚠️ cerca del límite':'')+'</span><span>'+cop(g)+' / '+cop(lim)+'</span></div><div class="pb"><i style="width:'+Math.min(pc,100)+'%;background:'+col+'"></i></div></div>';
+  }).join('');
+  else h+='<p class="mut">Aún no hay presupuesto para este mes. Se configura en la etapa 9.</p>';
+  h+='</div>';
+
+  // 5) Movimientos recientes
+  const rec=D.ing.map(m=>Object.assign({_i:1},m)).concat(D.gas.map(m=>Object.assign({_i:0},m)))
+    .sort((x,y)=>(String(y.Fecha)+String(y.Creado)).localeCompare(String(x.Fecha)+String(x.Creado))).slice(0,5);
+  h+='<div class="card"><h4>Movimientos recientes</h4>'+(rec.map(m=>
+    '<div class="mov" style="margin:6px 0"><div><b>'+esc(m['Descripción'])+'</b><div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+'</div></div><div class="v '+(m._i?'i':'g')+'">'+(m._i?'+':'−')+cop(m.Valor)+'</div></div>').join('')||'<p class="mut">Aún no hay movimientos.</p>')+'</div>';
+  $('#dash').innerHTML=h;
+}
+
+function pintarInforme(){
+  const sel=$('#iAnio'),act=sel.value||String(new Date().getFullYear());
+  const ys=[...new Set(D.ing.concat(D.gas).map(m=>String(m.Fecha).slice(0,4)).concat([String(new Date().getFullYear())]))].sort().reverse();
+  sel.innerHTML=ys.map(y=>'<option'+(y===act?' selected':'')+'>'+y+'</option>').join('');
+  const y=sel.value;let T=[0,0,0,0],f='';
+  for(let m=1;m<=12;m++){
+    const k=y+'-'+String(m).padStart(2,'0'),I=suma(real(D.ing).filter(x=>mesDe(x)===k)),Gs=real(D.gas).filter(x=>mesDe(x)===k);
+    const A=suma(Gs.filter(x=>!noAhorro(x))),G=suma(Gs.filter(noAhorro)),B=I-G-A;
+    T[0]+=I;T[1]+=G;T[2]+=A;T[3]+=B;
+    if(I||G||A)f+='<tr><td>'+MESES[m-1]+'</td><td class="ok">'+nf(I)+'</td><td class="err">'+nf(G)+'</td><td>'+nf(A)+'</td><td>'+nf(B)+'</td></tr>';
+  }
+  $('#iTab').innerHTML='<tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Ahorro</th><th>Balance</th></tr>'+(f||'<tr><td colspan="5" class="mut">Sin datos en este año.</td></tr>')+
+    '<tr><th>Total</th><th>'+nf(T[0])+'</th><th>'+nf(T[1])+'</th><th>'+nf(T[2])+'</th><th>'+nf(T[3])+'</th></tr>';
+}
+const nf=n=>Number(n).toLocaleString('es-CO');
+
+$('#bCsv').onclick=()=>{
+  const y=$('#iAnio').value;
+  const f=[['Tipo','Fecha','Descripción','Categoría','Subcategoría','Valor','Medio o cuenta','Tipo de gasto','Estado','Registrado por','Observaciones']];
+  D.ing.filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Ingreso',m.Fecha,m['Descripción'],m['Categoría'],'',m.Valor,m.Cuenta,'',m.Estado,m['Registrado por'],m.Observaciones]));
+  D.gas.filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Gasto',m.Fecha,m['Descripción'],m['Categoría'],m['Subcategoría'],m.Valor,m['Medio de pago'],m.Tipo,m.Estado,m['Registrado por'],m.Observaciones]));
+  const csv='\ufeff'+f.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='finanzas_'+y+'.csv';a.click();
+};
+$('#dMes').onchange=pintarDash;
+$('#iAnio').onchange=pintarInforme;
+$('#dMes').value=hoy().slice(0,7);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
