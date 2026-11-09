@@ -2,7 +2,7 @@
 <html lang="es"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#146c5b">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <title>Finanzas</title>
@@ -62,6 +62,41 @@ td,th{padding:8px 4px;text-align:right;border-bottom:1px solid var(--bd)}
 td:first-child,th:first-child{text-align:left}
 .tabs{display:flex;gap:8px;margin:12px 0}.tabs button{flex:1;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font-weight:600}.tabs button.activa{background:var(--pri);color:#fff}
 .fila-accion{display:flex;gap:8px;margin-top:10px}.fila-accion button{flex:1;margin:0;padding:10px;font-size:14px}.item-config{padding:12px 0;border-bottom:1px solid var(--bd)}.item-config:last-child{border:0}
+/* Pulido visual: prioriza lectura cómoda y controles amplios en móvil. */
+:root{color-scheme:light;--bg:#f3f7f5;--card:#fff;--tx:#182923;--mut:#718078;--ing:#16845b;--gas:#d94d4d;--pri:#146c5b;--bd:#e3ebe6}
+html,body{min-height:100%;height:100%;overscroll-behavior:none}
+body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:.005em}
+header{background:linear-gradient(120deg,#125d50,#19836a);padding:calc(15px + env(safe-area-inset-top)) 18px 15px;box-shadow:0 3px 16px #125d5028}
+header h1{font-size:20px;font-weight:750;letter-spacing:-.025em}
+header button{width:42px;height:42px;border-radius:14px;background:#ffffff20;font-size:20px}
+main{width:100%;max-width:760px;margin:0 auto;padding:18px 16px 28px;scrollbar-width:thin}
+.card,.kpi,.mov{border-color:var(--bd);box-shadow:0 4px 16px #18392c08}
+.card{border-radius:18px;padding:18px;margin-bottom:14px}
+.card h4{font-size:16px;font-weight:700;letter-spacing:-.015em;margin-bottom:10px}
+.mut{line-height:1.5}
+label{font-weight:600;color:#40554a;margin:14px 0 6px}
+input,select{min-height:48px;border-radius:12px;border-color:#dbe5de;background:#fbfdfb;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus{outline:none;border-color:#319477;box-shadow:0 0 0 3px #31947720}
+.btn{min-height:48px;border-radius:13px;background:linear-gradient(120deg,#146c5b,#19836a);box-shadow:0 5px 12px #146c5b20;cursor:pointer}
+.btn.sec{background:#edf3ef;color:#344b3e;box-shadow:none}.btn.del{background:#c94e4e;box-shadow:none}
+.seg button,.tabs button{border-radius:13px;min-height:48px;cursor:pointer}
+.seg .g.activa{background:#fff5f3}.seg .i.activa{background:#effaf4}
+nav{position:relative;z-index:2;box-shadow:0 -4px 18px #18392c0b;padding:5px 5px calc(5px + env(safe-area-inset-bottom));border-color:var(--bd)}
+nav button{min-height:58px;padding:6px 2px;color:#77847d;font-size:10px;font-weight:550}
+nav button span{font-size:21px;margin-bottom:2px}
+nav button.activa{color:var(--pri)}
+.kpis{gap:10px;margin:14px 0}
+.kpi{border-radius:16px;padding:14px 13px;min-height:82px}
+.kpi small{font-size:11px;font-weight:600;letter-spacing:.015em}
+.kpi b{display:block;margin-top:5px;font-size:clamp(15px,4vw,19px);letter-spacing:-.025em;overflow-wrap:anywhere}
+.b{gap:10px;margin:11px 0}.b span{width:76px;color:var(--mut)}.bt{height:12px}.b b{min-width:92px;font-size:13px}
+.pie{width:150px;height:150px;filter:drop-shadow(0 4px 8px #172b2016)}
+.cols{height:146px;gap:8px}.c i{max-width:34px;background:linear-gradient(180deg,#32a17d,#146c5b)}
+.mov{border-radius:14px;padding:13px;align-items:center}
+.fila{gap:10px}.fila-accion button{min-height:42px}
+#modal{align-items:flex-end}#modal.abierto{backdrop-filter:blur(3px)}.hoja{max-width:760px;margin:0 auto;border:1px solid var(--bd);box-shadow:0 -12px 40px #10251a20}
+@media(min-width:600px){main{padding:24px}.kpis{grid-template-columns:repeat(4,1fr)}nav{justify-content:center}nav button{max-width:140px;font-size:11px}}
+@media(max-width:380px){main{padding:13px 11px 22px}.kpi{padding:11px 10px}.kpi b{font-size:15px}nav button{font-size:9px}}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
