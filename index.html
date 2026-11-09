@@ -33,6 +33,15 @@ nav button.activa{color:var(--pri);font-weight:700}
 .seg button{flex:1;padding:14px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:var(--tx);font-weight:600;font-size:16px}
 .seg .g.activa{border-color:var(--gas);color:var(--gas)}
 .seg .i.activa{border-color:var(--ing);color:var(--ing)}
+
+.fila{display:flex;gap:8px;margin-top:8px}.fila>*{flex:1}.fila button{flex:0}
+.mov{display:flex;justify-content:space-between;gap:8px;padding:14px;background:var(--card);border:1px solid var(--bd);border-radius:12px;margin-bottom:8px}
+.mov .v{font-weight:700;white-space:nowrap}.v.i{color:var(--ing)}.v.g{color:var(--gas)}
+.chip{font-size:11px;background:#f59e0b;color:#fff;border-radius:8px;padding:1px 6px;margin-left:6px}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10;align-items:flex-end}
+#modal.abierto{display:flex}
+.hoja{background:var(--card);width:100%;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom))}
+.btn.sec{background:var(--bd);color:var(--tx)}.btn.del{background:var(--gas)}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
@@ -50,17 +59,26 @@ nav button.activa{color:var(--pri);font-weight:700}
       <div class="g-only"><label for="fSub">Subcategoría</label><input id="fSub" list="subs" autocomplete="off"><datalist id="subs"></datalist></div>
       <label for="fValor">Valor (COP)</label><input id="fValor" type="text" inputmode="numeric" placeholder="0">
       <div class="g-only"><label for="fMedio">Medio de pago</label>
-        <select id="fMedio"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta débito</option><option>Tarjeta crédito</option></select>
+        <select id="fMedio"></select>
         <label for="fTipoG">Tipo de gasto</label>
         <select id="fTipoG"><option>Variable</option><option>Fijo</option><option>Extraordinario</option></select></div>
-      <div class="i-only" style="display:none"><label for="fCuenta">Cuenta o medio de recepción</label><input id="fCuenta" list="cuentas" autocomplete="off"><datalist id="cuentas"><option>Efectivo</option><option>Cuenta bancaria</option></datalist></div>
+      <div class="i-only" style="display:none"><label for="fCuenta">Cuenta o medio de recepción</label><input id="fCuenta" list="cuentas" autocomplete="off"><datalist id="cuentas"><option>Efectivo</option><option>Nequi</option><option>Daviplata</option><option>Bancolombia</option><option>Davivienda</option><option>Otro banco</option></datalist></div>
       <label for="fEstado">Estado</label><select id="fEstado"><option>Realizado</option><option>Pendiente</option></select>
       <label for="fObs">Observaciones</label><input id="fObs" type="text" autocomplete="off">
       <button class="btn" id="bGuardar">Guardar</button>
       <div id="msgR"></div>
     </div>
   </section>
-  <section class="vista" id="movimientos"><div class="card mut">La lista, edición y eliminación se construyen en la etapa 7.</div></section>
+  <section class="vista" id="movimientos">
+    <div class="card">
+      <input id="mQ" type="search" placeholder="Buscar por descripción">
+      <div class="fila"><input id="mMes" type="month"><button class="btn sec" id="mTodo" style="width:auto;margin:0;padding:0 16px">Todo</button></div>
+      <div class="fila"><select id="mTipo"><option value="">Ingresos y gastos</option><option value="INGRESOS">Ingresos</option><option value="GASTOS">Gastos</option></select>
+      <select id="mCat"><option value="">Todas las categorías</option></select></div>
+    </div>
+    <p id="mTot" class="mut"></p>
+    <div id="lista"></div>
+  </section>
   <section class="vista" id="presupuesto"><div class="card mut">Presupuestos y obligaciones se construyen en la etapa 9.</div></section>
   <section class="vista" id="informes"><div class="card mut">Los informes se construyen en la etapa 8.</div></section>
   <section class="vista" id="ajustes">
@@ -83,6 +101,10 @@ nav button.activa{color:var(--pri);font-weight:700}
   <button data-v="presupuesto"><span>🎯</span>Presupuesto</button>
   <button data-v="informes"><span>📊</span>Informes</button>
 </nav>
+<div id="modal"><div class="hoja"><h3 id="eTitulo"></h3><div id="eForm"></div>
+  <button class="btn" id="eGuardar">Guardar cambios</button>
+  <button class="btn sec" id="eCancelar">Cancelar</button>
+  <button class="btn del" id="eEliminar">Eliminar</button></div></div>
 <script>
 const $=s=>document.querySelector(s);
 const TIT={inicio:'Inicio',registrar:'Registrar',movimientos:'Movimientos',presupuesto:'Presupuesto',informes:'Informes',ajustes:'Ajustes'};
@@ -91,7 +113,7 @@ const cfg=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){r
 function ir(v){
   document.querySelectorAll('.vista').forEach(e=>e.classList.toggle('activa',e.id===v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('activa',b.dataset.v===v));
-  $('#titulo').textContent=TIT[v];
+  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();
 }
 
 async function api(accion,extra){
@@ -127,6 +149,8 @@ $('#url').value=cfg().url||'';
 $('#token').value=cfg().token||'';
 if(cfg().url){ir('inicio');verificar()}else{ir('ajustes');verificar()}
 
+const MEDIOS=['Efectivo','Transferencia Nequi','Transferencia Daviplata','Transferencia Bancolombia','Transferencia Davivienda','Transferencia otro banco','Tarjeta débito','Tarjeta crédito'];
+document.querySelector('#fMedio').innerHTML=MEDIOS.map(o=>'<option>'+o+'</option>').join('');
 /* ===== Etapa 6: formularios ===== */
 let tipoReg='Gasto',cats=[],sincronizando=false;
 const hoy=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -191,6 +215,90 @@ $('#bProbar').addEventListener('click',()=>setTimeout(()=>{cargarCats();sync()},
 window.addEventListener('online',sync);
 $('#fFecha').value=hoy();
 if(cfg().url){cargarCats();sync()}
+
+/* ===== Etapa 7: movimientos ===== */
+let movs=[],editando=null;
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function fmtNum(el){const d=el.value.replace(/\D/g,'');el.value=d?Number(d).toLocaleString('es-CO'):''}
+const EST=['Realizado','Pendiente'];
+const CAMPOS={
+  GASTOS:[['Fecha','date'],['Descripción','text'],['Categoría','cat'],['Subcategoría','text'],['Valor','num'],['Medio de pago',MEDIOS],['Tipo',['Variable','Fijo','Extraordinario']],['Estado',EST],['Observaciones','text']],
+  INGRESOS:[['Fecha','date'],['Descripción','text'],['Categoría','cat'],['Valor','num'],['Cuenta','text'],['Estado',EST],['Observaciones','text']]
+};
+
+async function cargarMovs(){
+  const l=$('#lista');l.innerHTML='<p class="mut">Cargando…</p>';
+  try{
+    const r=await Promise.all([api('listar',{hoja:'INGRESOS'}),api('listar',{hoja:'GASTOS'})]);
+    if(!r[0].ok||!r[1].ok)throw new Error('listar');
+    movs=r[0].datos.map(x=>Object.assign(x,{_h:'INGRESOS'})).concat(r[1].datos.map(x=>Object.assign(x,{_h:'GASTOS'})));
+    movs.sort((x,y)=>(String(y.Fecha)+String(y.Creado)).localeCompare(String(x.Fecha)+String(x.Creado)));
+    const sel=$('#mCat'),act=sel.value;
+    sel.innerHTML='<option value="">Todas las categorías</option>'+[...new Set(movs.map(m=>m['Categoría']))].map(c=>'<option'+(c===act?' selected':'')+'>'+esc(c)+'</option>').join('');
+    pintarMovs();
+  }catch(e){l.innerHTML='<p class="err">No se pudieron cargar los movimientos. Revisa tu conexión.</p>'}
+}
+
+function pintarMovs(){
+  const q=norm($('#mQ').value),t=$('#mTipo').value,c=$('#mCat').value,mes=$('#mMes').value;
+  const f=movs.filter(m=>(!q||norm(m['Descripción']).includes(q))&&(!t||m._h===t)&&(!c||m['Categoría']===c)&&(!mes||String(m.Fecha).slice(0,7)===mes));
+  let ing=0,gas=0;
+  f.forEach(m=>{if(m.Estado!=='Pendiente'){if(m._h==='INGRESOS')ing+=Number(m.Valor);else gas+=Number(m.Valor)}});
+  $('#mTot').innerHTML='Ingresos <b class="ok">'+cop(ing)+'</b> · Gastos <b class="err">'+cop(gas)+'</b> · '+f.length+' mov. (sin contar pendientes)';
+  $('#lista').innerHTML=f.map(m=>{
+    const i=m._h==='INGRESOS';
+    return '<div class="mov" data-i="'+movs.indexOf(m)+'"><div><b>'+esc(m['Descripción'])+'</b>'+(m.Estado==='Pendiente'?'<span class="chip">Pendiente</span>':'')+
+      '<div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+' · '+esc(m['Registrado por'])+'</div></div>'+
+      '<div class="v '+(i?'i':'g')+'">'+(i?'+':'−')+cop(m.Valor)+'</div></div>';
+  }).join('')||'<p class="mut">Sin movimientos con esos filtros.</p>';
+}
+
+function abrirEdicion(m){
+  editando=m;
+  const g=m._h==='GASTOS';
+  $('#eTitulo').textContent=g?'Editar gasto':'Editar ingreso';
+  $('#eForm').innerHTML=CAMPOS[m._h].map((c,i)=>{
+    const n=c[0],t=c[1],v=m[n]==null?'':m[n],id='e'+i;
+    let inp;
+    if(t==='date')inp='<input type="date" id="'+id+'" value="'+esc(v)+'">';
+    else if(t==='num')inp='<input type="text" inputmode="numeric" id="'+id+'" value="'+Number(v).toLocaleString('es-CO')+'" oninput="fmtNum(this)">';
+    else if(t==='cat'){
+      const op=[...new Set(cats.filter(x=>x.Tipo===(g?'Gasto':'Ingreso')&&x.Activa==='SÍ').map(x=>x['Categoría']).concat([v]))];
+      inp='<select id="'+id+'">'+op.map(o=>'<option'+(o===v?' selected':'')+'>'+esc(o)+'</option>').join('')+'</select>';
+    }
+    else if(Array.isArray(t))inp='<select id="'+id+'">'+(v&&t.indexOf(v)<0?t.concat([v]):t).map(o=>'<option'+(o===v?' selected':'')+'>'+o+'</option>').join('')+'</select>';
+    else inp='<input type="text" id="'+id+'" value="'+esc(v)+'">';
+    return '<label for="'+id+'">'+n+'</label>'+inp;
+  }).join('');
+  $('#modal').classList.add('abierto');
+}
+const cerrarEdicion=()=>{$('#modal').classList.remove('abierto');editando=null};
+
+$('#lista').onclick=e=>{const d=e.target.closest('[data-i]');if(d)abrirEdicion(movs[+d.dataset.i])};
+$('#eCancelar').onclick=cerrarEdicion;
+$('#eGuardar').onclick=async()=>{
+  const m=editando,datos={};
+  CAMPOS[m._h].forEach((c,i)=>{let v=$('#e'+i).value;if(c[1]==='num')v=Number(v.replace(/\D/g,''));datos[c[0]]=v});
+  if(!datos.Valor||!String(datos['Descripción']).trim()||!datos.Fecha){alert('Fecha, descripción y valor son obligatorios.');return}
+  try{
+    const r=await api('actualizar',{hoja:m._h,id:m.ID,datos:datos});
+    if(!r.ok)throw new Error(r.error);
+    Object.assign(m,datos);cerrarEdicion();pintarMovs();
+  }catch(e){alert('No se pudo guardar. Revisa tu conexión.')}
+};
+$('#eEliminar').onclick=async()=>{
+  if(!confirm('¿Eliminar este movimiento?'))return;
+  try{
+    const r=await api('eliminar',{hoja:editando._h,id:editando.ID});
+    if(!r.ok)throw new Error(r.error);
+    movs.splice(movs.indexOf(editando),1);cerrarEdicion();pintarMovs();
+  }catch(e){alert('No se pudo eliminar. Revisa tu conexión.')}
+};
+$('#mQ').oninput=pintarMovs;
+['#mMes','#mTipo','#mCat'].forEach(i=>$(i).onchange=pintarMovs);
+$('#mTodo').onclick=()=>{$('#mMes').value='';pintarMovs()};
+$('#mMes').value=hoy().slice(0,7);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
