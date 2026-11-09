@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>Finanzas</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--ing:#16a34a;--gas:#dc2626;--pri:#0f766e;--bd:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1316;--card:#1a2025;--tx:#eef1f4;--mut:#9aa4af;--bd:#2a323a}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;background:var(--pri);color:#fff}
+header h1{font-size:18px;margin:0}
+header button{background:none;border:0;color:#fff;font-size:22px}
+main{flex:1;overflow-y:auto;padding:16px}
+.vista{display:none}.vista.activa{display:block}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:12px}
+.mut{color:var(--mut);font-size:14px}
+label{display:block;font-size:14px;margin:12px 0 4px}
+input{width:100%;padding:14px;font-size:16px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
+.btn{width:100%;padding:16px;margin-top:14px;font-size:16px;font-weight:600;border:0;border-radius:12px;background:var(--pri);color:#fff}
+#msg{margin-top:12px;font-size:15px}
+.ok{color:var(--ing)}.err{color:var(--gas)}
+nav{display:flex;background:var(--card);border-top:1px solid var(--bd);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:10px 0;border:0;background:none;color:var(--mut);font-size:11px}
+nav button span{display:block;font-size:22px}
+nav button.activa{color:var(--pri);font-weight:700}
+</style></head>
+<body>
+<header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
+<main>
+  <section class="vista" id="inicio">
+    <div class="card"><b>Estado de la conexión</b><p id="estado" class="mut">Verificando…</p></div>
+    <div class="card mut">El panel financiero se construye en la etapa 8.</div>
+  </section>
+  <section class="vista" id="registrar"><div class="card mut">Los formularios de ingresos y gastos se construyen en la etapa 6.</div></section>
+  <section class="vista" id="movimientos"><div class="card mut">La lista, edición y eliminación se construyen en la etapa 7.</div></section>
+  <section class="vista" id="presupuesto"><div class="card mut">Presupuestos y obligaciones se construyen en la etapa 9.</div></section>
+  <section class="vista" id="informes"><div class="card mut">Los informes se construyen en la etapa 8.</div></section>
+  <section class="vista" id="ajustes">
+    <div class="card">
+      <b>Conexión con Google Sheets</b>
+      <label for="url">URL del Web App (termina en /exec)</label>
+      <input id="url" type="url" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec">
+      <label for="token">Tu token personal</label>
+      <input id="token" type="password" autocomplete="off">
+      <button class="btn" id="bProbar">Guardar y probar conexión</button>
+      <div id="msg"></div>
+    </div>
+    <p class="mut">Estos datos se guardan solo en este celular.</p>
+  </section>
+</main>
+<nav>
+  <button data-v="inicio"><span>🏠</span>Inicio</button>
+  <button data-v="registrar"><span>➕</span>Registrar</button>
+  <button data-v="movimientos"><span>📋</span>Movimientos</button>
+  <button data-v="presupuesto"><span>🎯</span>Presupuesto</button>
+  <button data-v="informes"><span>📊</span>Informes</button>
+</nav>
+<script>
+const $=s=>document.querySelector(s);
+const TIT={inicio:'Inicio',registrar:'Registrar',movimientos:'Movimientos',presupuesto:'Presupuesto',informes:'Informes',ajustes:'Ajustes'};
+const cfg=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){return{}}};
+
+function ir(v){
+  document.querySelectorAll('.vista').forEach(e=>e.classList.toggle('activa',e.id===v));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('activa',b.dataset.v===v));
+  $('#titulo').textContent=TIT[v];
+}
+
+async function api(accion,extra){
+  const c=cfg();
+  const r=await fetch(c.url,{method:'POST',body:JSON.stringify(Object.assign({token:c.token,accion:accion},extra||{}))});
+  return r.json();
+}
+
+async function verificar(){
+  const e=$('#estado');
+  if(!cfg().url){e.className='mut';e.textContent='Sin configurar. Toca ⚙️ para conectar.';return false}
+  try{
+    const r=await api('ping');
+    if(r.ok){e.className='ok';e.textContent='Conectado como '+r.usuario;return r}
+    e.className='err';e.textContent=r.error||'Error de conexión';
+  }catch(x){e.className='err';e.textContent='Sin conexión con el servidor'}
+  return false;
+}
+
+$('#bProbar').onclick=async()=>{
+  const m=$('#msg');
+  localStorage.setItem('cfg',JSON.stringify({url:$('#url').value.trim(),token:$('#token').value.trim()}));
+  m.className='';m.textContent='Probando…';
+  const r=await verificar();
+  if(r){m.className='ok';m.textContent='✔ Conectado como '+r.usuario}
+  else{m.className='err';m.textContent='✖ '+$('#estado').textContent}
+};
+
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>ir(b.dataset.v));
+$('#bAjustes').onclick=()=>ir('ajustes');
+
+$('#url').value=cfg().url||'';
+$('#token').value=cfg().token||'';
+if(cfg().url){ir('inicio');verificar()}else{ir('ajustes');verificar()}
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body></html>
