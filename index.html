@@ -60,6 +60,8 @@ nav button.activa{color:var(--pri);font-weight:700}
 table{width:100%;border-collapse:collapse;font-size:13px}
 td,th{padding:8px 4px;text-align:right;border-bottom:1px solid var(--bd)}
 td:first-child,th:first-child{text-align:left}
+.tabs{display:flex;gap:8px;margin:12px 0}.tabs button{flex:1;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--card);color:var(--tx);font-weight:600}.tabs button.activa{background:var(--pri);color:#fff}
+.fila-accion{display:flex;gap:8px;margin-top:10px}.fila-accion button{flex:1;margin:0;padding:10px;font-size:14px}.item-config{padding:12px 0;border-bottom:1px solid var(--bd)}.item-config:last-child{border:0}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
@@ -98,7 +100,28 @@ td:first-child,th:first-child{text-align:left}
     <p id="mTot" class="mut"></p>
     <div id="lista"></div>
   </section>
-  <section class="vista" id="presupuesto"><div class="card mut">Presupuestos y obligaciones se construyen en la etapa 9.</div></section>
+  <section class="vista" id="presupuesto">
+    <div class="tabs"><button id="tabPres" class="activa">Presupuestos</button><button id="tabObl">Obligaciones</button></div>
+    <div id="panelPres">
+      <div class="card"><h4>Presupuesto por categoría</h4><p class="mut">Define el límite mensual para cada categoría. Se compara con gastos realizados.</p>
+        <label for="pMes">Mes</label><input id="pMes" type="month">
+        <label for="pCat">Categoría</label><select id="pCat"></select>
+        <label for="pLimite">Límite mensual (COP)</label><input id="pLimite" type="text" inputmode="numeric" placeholder="0">
+        <button class="btn" id="bGuardarPres">Guardar presupuesto</button><div id="msgPres"></div>
+      </div><div class="card"><h4>Presupuestos del mes</h4><div id="listaPres" class="mut">Cargando…</div></div>
+    </div>
+    <div id="panelObl" style="display:none">
+      <div class="card"><h4>Registrar obligación financiera</h4><p class="mut">Registra deudas y compromisos para seguir el saldo pendiente.</p>
+        <label for="oNombre">Obligación</label><input id="oNombre" type="text" placeholder="Ej. Crédito, tarjeta o préstamo">
+        <label for="oTipo">Tipo</label><select id="oTipo"><option>Crédito</option><option>Tarjeta de crédito</option><option>Préstamo</option><option>Servicio</option><option>Otro</option></select>
+        <label for="oSaldo">Saldo actual (COP)</label><input id="oSaldo" type="text" inputmode="numeric" placeholder="0">
+        <label for="oCuota">Cuota mensual (COP)</label><input id="oCuota" type="text" inputmode="numeric" placeholder="0">
+        <label for="oVence">Próximo vencimiento</label><input id="oVence" type="date">
+        <label for="oObs">Observaciones</label><input id="oObs" type="text">
+        <button class="btn" id="bGuardarObl">Guardar obligación</button><div id="msgObl"></div>
+      </div><div class="card"><h4>Obligaciones registradas</h4><div id="listaObl" class="mut">Cargando…</div></div>
+    </div>
+  </section>
   <section class="vista" id="informes">
     <div class="fila"><select id="iAnio"></select><button class="btn" id="bCsv" style="margin:0;width:auto;padding:0 16px">Exportar Excel</button></div>
     <div class="card" style="margin-top:12px;overflow-x:auto"><h4>Resumen anual (COP)</h4><table id="iTab"></table></div>
@@ -135,7 +158,7 @@ const cfg=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){r
 function ir(v){
   document.querySelectorAll('.vista').forEach(e=>e.classList.toggle('activa',e.id===v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('activa',b.dataset.v===v));
-  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();if((v==='inicio'||v==='informes')&&cfg().url)cargarDash();
+  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();if((v==='inicio'||v==='informes')&&cfg().url)cargarDash();if(v==='presupuesto'&&cfg().url)cargarConfigFinanzas();
 }
 
 async function api(accion,extra){
@@ -182,8 +205,9 @@ const leerCola=()=>JSON.parse(localStorage.getItem('cola')||'[]');
 async function cargarCats(){
   try{const r=await api('listar',{hoja:'CATEGORÍAS'});if(r.ok){cats=r.datos;localStorage.setItem('cats',JSON.stringify(cats))}}catch(e){}
   if(!cats.length)cats=JSON.parse(localStorage.getItem('cats')||'[]');
-  pintarCats();
+  pintarCats();pintarSelectorPresupuesto();
 }
+function pintarSelectorPresupuesto(){const s=$('#pCat');if(!s)return;const prev=s.value,items=[...new Set(cats.filter(x=>x.Tipo==='Gasto'&&x.Activa==='SÍ').map(x=>x['Categoría']))];s.innerHTML=items.map(c=>'<option>'+esc(c)+'</option>').join('');if(items.includes(prev))s.value=prev}
 function pintarCats(){
   const nombres=[...new Set(cats.filter(c=>c.Tipo===tipoReg&&c.Activa==='SÍ').map(c=>c['Categoría']))];
   $('#fCat').innerHTML=nombres.map(n=>'<option>'+n+'</option>').join('');
@@ -399,6 +423,53 @@ function pintarDash(){
     '<div class="mov" style="margin:6px 0"><div><b>'+esc(m['Descripción'])+'</b><div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+'</div></div><div class="v '+(m._i?'i':'g')+'">'+(m._i?'+':'−')+cop(m.Valor)+'</div></div>').join('')||'<p class="mut">Aún no hay movimientos.</p>')+'</div>';
   $('#dash').innerHTML=h;
 }
+
+/* ===== Etapa 9: presupuestos y obligaciones ===== */
+let editPres=null,editObl=null;
+const monto=s=>Number(String(s||'').replace(/\D/g,''));
+function inputMonto(id){$(id).oninput=e=>{const n=monto(e.target.value);e.target.value=n?n.toLocaleString('es-CO'):''}}
+inputMonto('#pLimite');inputMonto('#oSaldo');inputMonto('#oCuota');
+function setModuloObl(obligaciones){$('#panelPres').style.display=obligaciones?'none':'';$('#panelObl').style.display=obligaciones?'':'none';$('#tabPres').classList.toggle('activa',!obligaciones);$('#tabObl').classList.toggle('activa',obligaciones);if(cfg().url)cargarConfigFinanzas()}
+$('#tabPres').onclick=()=>setModuloObl(false);$('#tabObl').onclick=()=>setModuloObl(true);
+function pintarListaPres(){
+  const mes=$('#pMes').value,arr=D.pre.filter(x=>String(x.Mes||'').slice(0,7)===mes);
+  $('#listaPres').innerHTML=arr.length?arr.map(x=>'<div class="item-config"><b>'+esc(x['Categoría'])+'</b><div class="mut">Límite: '+cop(x['Límite'])+'</div><div class="fila-accion"><button class="btn sec" data-pres-edit="'+esc(x.ID||'')+'">Editar</button><button class="btn del" data-pres-del="'+esc(x.ID||'')+'">Eliminar</button></div></div>').join(''):'<p class="mut">No hay presupuestos para este mes.</p>';
+}
+function pintarListaObl(){
+  $('#listaObl').innerHTML=D.obl.length?D.obl.map(x=>'<div class="item-config"><b>'+esc(x.Nombre||x.Obligación||x['Descripción']||'Obligación')+'</b><div class="mut">'+esc(x.Tipo||'')+(x['Próximo vencimiento']?' · Vence '+esc(x['Próximo vencimiento']):'')+'</div><div>Saldo: <b>'+cop(x['Saldo actual'])+'</b> · Cuota: '+cop(x['Cuota mensual']||0)+'</div>'+(x.Observaciones?'<div class="mut">'+esc(x.Observaciones)+'</div>':'')+'<div class="fila-accion"><button class="btn sec" data-obl-edit="'+esc(x.ID||'')+'">Editar</button><button class="btn del" data-obl-del="'+esc(x.ID||'')+'">Eliminar</button></div></div>').join(''):'<p class="mut">No hay obligaciones registradas.</p>';
+}
+async function cargarConfigFinanzas(){
+  try{const r=await Promise.all(['PRESUPUESTO','OBLIGACIONES'].map(h=>api('listar',{hoja:h})));if(r.some(x=>!x.ok))throw Error();D.pre=r[0].datos;D.obl=r[1].datos;
+    pintarSelectorPresupuesto();pintarListaPres();pintarListaObl();pintarDash();
+  }catch(e){$('#listaPres').innerHTML='<span class="err">No se pudieron cargar los datos.</span>';$('#listaObl').innerHTML='<span class="err">No se pudieron cargar los datos.</span>'}
+}
+$('#pMes').value=hoy().slice(0,7);$('#pMes').onchange=()=>{editPres=null;$('#bGuardarPres').textContent='Guardar presupuesto';pintarListaPres()};
+$('#bGuardarPres').onclick=async()=>{
+  const msg=$('#msgPres'),mes=$('#pMes').value,cat=$('#pCat').value,lim=monto($('#pLimite').value);
+  if(!mes||!cat||lim<=0){msg.className='err';msg.textContent='Selecciona mes y categoría e indica un límite mayor que cero.';return}
+  const existente=editPres||D.pre.find(x=>String(x.Mes||'').slice(0,7)===mes&&x['Categoría']===cat),datos={Mes:mes,'Categoría':cat,'Límite':lim};msg.className='mut';msg.textContent='Guardando…';
+  try{const r=existente?await api('actualizar',{hoja:'PRESUPUESTO',id:existente.ID,datos}):await api('agregar',{hoja:'PRESUPUESTO',datos:Object.assign({ID:crypto.randomUUID()},datos)});if(!r.ok)throw Error();editPres=null;$('#pLimite').value='';$('#bGuardarPres').textContent='Guardar presupuesto';msg.className='ok';msg.textContent='Presupuesto guardado.';await cargarConfigFinanzas()}catch(e){msg.className='err';msg.textContent='No se pudo guardar. Revisa tu conexión y que exista la hoja PRESUPUESTO.'}
+};
+$('#listaPres').onclick=async e=>{
+  const eb=e.target.closest('[data-pres-edit]'),db=e.target.closest('[data-pres-del]');if(!eb&&!db)return;
+  const id=(eb||db).dataset[eb?'presEdit':'presDel'],x=D.pre.find(a=>String(a.ID||'')===id);if(!x){alert('Este registro no tiene ID para editar o eliminar.');return}
+  if(eb){editPres=x;$('#pMes').value=String(x.Mes).slice(0,7);$('#pCat').value=x['Categoría'];$('#pLimite').value=Number(x['Límite']).toLocaleString('es-CO');$('#bGuardarPres').textContent='Actualizar presupuesto';window.scrollTo({top:0,behavior:'smooth'});return}
+  if(!confirm('¿Eliminar el presupuesto de '+x['Categoría']+' para '+String(x.Mes).slice(0,7)+'?'))return;
+  try{const r=await api('eliminar',{hoja:'PRESUPUESTO',id:x.ID});if(!r.ok)throw Error();await cargarConfigFinanzas()}catch(e){alert('No se pudo eliminar el presupuesto.')}
+};
+$('#bGuardarObl').onclick=async()=>{
+  const msg=$('#msgObl'),nombre=$('#oNombre').value.trim(),saldo=monto($('#oSaldo').value),cuota=monto($('#oCuota').value);
+  if(!nombre){msg.className='err';msg.textContent='Escribe el nombre de la obligación.';return}
+  const datos={Nombre:nombre,Tipo:$('#oTipo').value,'Saldo actual':saldo,'Cuota mensual':cuota,'Próximo vencimiento':$('#oVence').value,Observaciones:$('#oObs').value.trim()};msg.className='mut';msg.textContent='Guardando…';
+  try{const r=editObl?await api('actualizar',{hoja:'OBLIGACIONES',id:editObl.ID,datos}):await api('agregar',{hoja:'OBLIGACIONES',datos:Object.assign({ID:crypto.randomUUID()},datos)});if(!r.ok)throw Error();editObl=null;$('#bGuardarObl').textContent='Guardar obligación';['#oNombre','#oSaldo','#oCuota','#oVence','#oObs'].forEach(i=>$(i).value='');msg.className='ok';msg.textContent='Obligación guardada.';await cargarConfigFinanzas()}catch(e){msg.className='err';msg.textContent='No se pudo guardar. Revisa tu conexión y que exista la hoja OBLIGACIONES.'}
+};
+$('#listaObl').onclick=async e=>{
+  const eb=e.target.closest('[data-obl-edit]'),db=e.target.closest('[data-obl-del]');if(!eb&&!db)return;
+  const id=(eb||db).dataset[eb?'oblEdit':'oblDel'],x=D.obl.find(a=>String(a.ID||'')===id);if(!x){alert('Este registro no tiene ID para editar o eliminar.');return}
+  if(eb){editObl=x;$('#oNombre').value=x.Nombre||x.Obligación||x['Descripción']||'';$('#oTipo').value=x.Tipo||'Otro';$('#oSaldo').value=Number(x['Saldo actual']||0).toLocaleString('es-CO');$('#oCuota').value=Number(x['Cuota mensual']||0).toLocaleString('es-CO');$('#oVence').value=x['Próximo vencimiento']||'';$('#oObs').value=x.Observaciones||'';$('#bGuardarObl').textContent='Actualizar obligación';window.scrollTo({top:0,behavior:'smooth'});return}
+  if(!confirm('¿Eliminar esta obligación?'))return;
+  try{const r=await api('eliminar',{hoja:'OBLIGACIONES',id:x.ID});if(!r.ok)throw Error();await cargarConfigFinanzas()}catch(e){alert('No se pudo eliminar la obligación.')}
+};
 
 function pintarInforme(){
   const sel=$('#iAnio'),act=sel.value||String(new Date().getFullYear());
