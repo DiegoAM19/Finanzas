@@ -97,6 +97,35 @@ nav button.activa{color:var(--pri)}
 #modal{align-items:flex-end}#modal.abierto{backdrop-filter:blur(3px)}.hoja{max-width:760px;margin:0 auto;border:1px solid var(--bd);box-shadow:0 -12px 40px #10251a20}
 @media(min-width:600px){main{padding:24px}.kpis{grid-template-columns:repeat(4,1fr)}nav{justify-content:center}nav button{max-width:140px;font-size:11px}}
 @media(max-width:380px){main{padding:13px 11px 22px}.kpi{padding:11px 10px}.kpi b{font-size:15px}nav button{font-size:9px}}
+
+/* ===== Mejoras visuales ===== */
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes grow{from{transform:scaleX(0)}}
+@keyframes up{from{transform:scaleY(0)}}
+.vista.activa{animation:rise .3s ease}
+.bt i,.pb i{transform-origin:left;animation:grow .7s cubic-bezier(.2,.8,.2,1)}
+.c i{transform-origin:bottom;animation:up .7s cubic-bezier(.2,.8,.2,1)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.hero{position:relative;overflow:hidden;color:#fff;border-radius:24px;padding:22px 20px;margin:12px 0;background:linear-gradient(135deg,#0f5f52 0%,#1f9a78 100%);box-shadow:0 10px 26px #146c5b40}
+.hero.neg{background:linear-gradient(135deg,#a63a3a,#e0645a);box-shadow:0 10px 26px #d94d4d40}
+.hero::after{content:"";position:absolute;right:-40px;top:-50px;width:170px;height:170px;border-radius:50%;background:#ffffff18}
+.hero small{display:block;opacity:.88;font-size:13px;font-weight:600}
+.hero .big{font-size:clamp(30px,9vw,40px);font-weight:800;letter-spacing:-.03em;margin:6px 0 14px}
+.hero .hr{display:flex;gap:8px;flex-wrap:wrap}
+.hero .hr span{background:#ffffff26;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.kpi{border-left:4px solid var(--pri)}
+.av{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:21px;flex:none}
+.av.i{background:#e3f6ec}.av.g{background:#fdeceb}
+.mi{display:flex;gap:12px;align-items:center;min-width:0}
+.mov{transition:transform .12s}.mov:active{transform:scale(.98)}
+.pie{display:grid;place-items:center;position:relative}
+.pie::before{content:"";position:absolute;inset:22%;border-radius:50%;background:var(--card)}
+.pie b{position:relative;font-size:11px;text-align:center;line-height:1.25}
+#fab{position:fixed;right:18px;bottom:calc(84px + env(safe-area-inset-bottom));width:58px;height:58px;border-radius:50%;border:0;background:linear-gradient(135deg,#146c5b,#1f9a78);color:#fff;font-size:32px;line-height:1;box-shadow:0 8px 20px #146c5b55;z-index:5;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.seg .g.activa{background:var(--gas);color:#fff;border-color:var(--gas)}
+.seg .i.activa{background:var(--ing);color:#fff;border-color:var(--ing)}
+#fValor{font-size:28px;font-weight:800;text-align:center;min-height:60px}
+nav button.activa span{background:#dff2ea;border-radius:16px;width:56px;margin:0 auto 2px}
 </style></head>
 <body>
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
@@ -176,6 +205,7 @@ nav button.activa{color:var(--pri)}
     <p class="mut">Estos datos se guardan solo en este celular.</p>
   </section>
 </main>
+<button id="fab" aria-label="Registrar movimiento">+</button>
 <nav>
   <button data-v="inicio"><span>🏠</span>Inicio</button>
   <button data-v="registrar"><span>➕</span>Registrar</button>
@@ -195,7 +225,7 @@ const cfg=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){r
 function ir(v){
   document.querySelectorAll('.vista').forEach(e=>e.classList.toggle('activa',e.id===v));
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('activa',b.dataset.v===v));
-  $('#titulo').textContent=TIT[v];if(v==='movimientos'&&cfg().url)cargarMovs();if((v==='inicio'||v==='informes')&&cfg().url)cargarDash();if(v==='presupuesto'&&cfg().url)cargarConfigFinanzas();
+  $('#titulo').textContent=TIT[v];$('#fab').style.display=(v==='registrar'||v==='ajustes')?'none':'flex';if(v==='movimientos'&&cfg().url)cargarMovs();if((v==='inicio'||v==='informes')&&cfg().url)cargarDash();if(v==='presupuesto'&&cfg().url)cargarConfigFinanzas();
 }
 
 async function api(accion,extra){
@@ -331,8 +361,8 @@ function pintarMovs(){
   $('#mTot').innerHTML='Ingresos <b class="ok">'+cop(ing)+'</b> · Gastos <b class="err">'+cop(gas)+'</b> · '+f.length+' mov. (sin contar pendientes)';
   $('#lista').innerHTML=f.map(m=>{
     const i=m._h==='INGRESOS';
-    return '<div class="mov" data-i="'+movs.indexOf(m)+'"><div><b>'+esc(m['Descripción'])+'</b>'+(m.Estado==='Pendiente'?'<span class="chip">Pendiente</span>':'')+
-      '<div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+' · '+esc(m['Registrado por'])+'</div></div>'+
+    return '<div class="mov" data-i="'+movs.indexOf(m)+'"><div class="mi"><span class="av '+(i?'i':'g')+'">'+emo(m['Categoría'])+'</span><div><b>'+esc(m['Descripción'])+'</b>'+(m.Estado==='Pendiente'?'<span class="chip">Pendiente</span>':'')+
+      '<div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+' · '+esc(m['Registrado por'])+'</div></div></div>'+
       '<div class="v '+(i?'i':'g')+'">'+(i?'+':'−')+cop(m.Valor)+'</div></div>';
   }).join('')||'<p class="mut">Sin movimientos con esos filtros.</p>';
 }
@@ -417,9 +447,9 @@ function pintarDash(){
   const ti=suma(I),tg=suma(G2),bal=ti-tg-ahorro;
   const fijos=suma(G2.filter(m=>m.Tipo==='Fijo')),vars=suma(G2.filter(m=>m.Tipo==='Variable'));
   const obl=D.obl.reduce((t,o)=>t+Number(o['Saldo actual']||0),0);
-  let h='<div class="kpis">'+kpi('Ingresos del mes',ti,'var(--ing)')+kpi('Gastos del mes',tg,'var(--gas)')+
-    kpi('Balance disponible',bal,bal<0?'var(--gas)':'var(--ing)')+kpi('Ahorro del mes',ahorro)+
-    kpi('Gastos fijos',fijos)+kpi('Gastos variables',vars)+kpi('Obligaciones (saldo)',obl)+'</div>';
+  let h='<div class="hero'+(bal<0?' neg':'')+'"><small>Balance disponible · '+nomMes(mes)+(usuarioSel?' · '+esc(usuarioSel):'')+'</small><div class="big">'+cop(bal)+'</div>'+
+    '<div class="hr"><span>▲ Ingresos '+cop(ti)+'</span><span>▼ Gastos '+cop(tg)+'</span></div></div>'+
+    '<div class="kpis">'+kpi('🐷 Ahorro del mes',ahorro)+kpi('📌 Gastos fijos',fijos)+kpi('🔀 Gastos variables',vars)+kpi('🏦 Obligaciones (saldo)',obl)+'</div>';
 
   // 1) Ingresos vs gastos
   const mx=Math.max(ti,tg,1);
@@ -433,8 +463,8 @@ function pintarDash(){
   if(tg){
     let acc=0,grad=[];
     cats2.forEach((x,i)=>{const a=acc/tg*360;acc+=x[1];grad.push(PAL[i%PAL.length]+' '+a+'deg '+(acc/tg*360)+'deg')});
-    h+='<div class="pie" style="background:conic-gradient('+grad.join(',')+')"></div><div class="leg">'+
-      cats2.map((x,i)=>'<div><span><i style="background:'+PAL[i%PAL.length]+'"></i>'+esc(x[0])+'</span><span>'+cop(x[1])+' · '+Math.round(x[1]/tg*100)+'%</span></div>').join('')+'</div>';
+    h+='<div class="pie" style="background:conic-gradient('+grad.join(',')+')"><b>'+cop(tg)+'</b></div><div class="leg">'+
+      cats2.map((x,i)=>'<div><span><i style="background:'+PAL[i%PAL.length]+'"></i>'+emo(x[0])+' '+esc(x[0])+'</span><span>'+cop(x[1])+' · '+Math.round(x[1]/tg*100)+'%</span></div>').join('')+'</div>';
   }else h+='<p class="mut">Sin gastos en este mes.</p>';
   h+='</div>';
 
@@ -449,7 +479,7 @@ function pintarDash(){
   if(P.length)h+=P.map(x=>{
     const g=suma(real(D.gas).filter(m=>mesDe(m)===mes&&m['Categoría']===x['Categoría'])),lim=Number(x['Límite']||0),pc=lim?g/lim*100:0;
     const col=pc>=100?'var(--gas)':pc>=80?'#f59e0b':'var(--ing)';
-    return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(x['Categoría'])+(pc>=100?' ⚠️ superado':pc>=80?' ⚠️ cerca del límite':'')+'</span><span>'+cop(g)+' / '+cop(lim)+'</span></div><div class="pb"><i style="width:'+Math.min(pc,100)+'%;background:'+col+'"></i></div></div>';
+    return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+emo(x['Categoría'])+' '+esc(x['Categoría'])+(pc>=100?' ⚠️ superado':pc>=80?' ⚠️ cerca del límite':'')+'</span><span>'+cop(g)+' / '+cop(lim)+'</span></div><div class="pb"><i style="width:'+Math.min(pc,100)+'%;background:'+col+'"></i></div></div>';
   }).join('');
   else h+='<p class="mut">Aún no hay presupuesto para este mes. Se configura en la etapa 9.</p>';
   h+='</div>';
@@ -458,7 +488,7 @@ function pintarDash(){
   const rec=DI.map(m=>Object.assign({_i:1},m)).concat(DG.map(m=>Object.assign({_i:0},m)))
     .sort((x,y)=>(String(y.Fecha)+String(y.Creado)).localeCompare(String(x.Fecha)+String(x.Creado))).slice(0,5);
   h+='<div class="card"><h4>Movimientos recientes</h4>'+(rec.map(m=>
-    '<div class="mov" style="margin:6px 0"><div><b>'+esc(m['Descripción'])+'</b><div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+'</div></div><div class="v '+(m._i?'i':'g')+'">'+(m._i?'+':'−')+cop(m.Valor)+'</div></div>').join('')||'<p class="mut">Aún no hay movimientos.</p>')+'</div>';
+    '<div class="mov" style="margin:6px 0"><div class="mi"><span class="av '+(m._i?'i':'g')+'">'+emo(m['Categoría'])+'</span><div><b>'+esc(m['Descripción'])+'</b><div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+'</div></div></div><div class="v '+(m._i?'i':'g')+'">'+(m._i?'+':'−')+cop(m.Valor)+'</div></div>').join('')||'<p class="mut">Aún no hay movimientos.</p>')+'</div>';
   $('#dash').innerHTML=h;
 }
 
@@ -555,6 +585,11 @@ function cambiarUsuario(v){
 }
 ['#mUsuario','#dUsuario','#iUsuario'].forEach(id=>$(id).onchange=e=>cambiarUsuario(e.target.value));
 llenarUsuarios();
+
+/* ===== Emojis por categoría y botón flotante ===== */
+const EMO={'Alimentación':'🍽️','Vivienda':'🏠','Servicios públicos':'💡','Transporte':'🚌','Salud':'💊','Educación':'📚','Entretenimiento':'🎬','Compras personales':'🛍️','Obligaciones financieras':'🏦','Familia':'👨‍👩‍👧','Ahorro':'🐷','Salario':'💼','Horas extras':'⏱️','Bonificaciones':'🎁','Negocios':'🏪','Otros':'📌'};
+const emo=c=>EMO[c]||'💸';
+$('#fab').onclick=()=>ir('registrar');
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
