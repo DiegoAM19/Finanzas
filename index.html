@@ -102,7 +102,7 @@ nav button.activa{color:var(--pri)}
 <header><h1 id="titulo">Inicio</h1><button id="bAjustes" aria-label="Ajustes">⚙️</button></header>
 <main>
   <section class="vista" id="inicio">
-    <input id="dMes" type="month">
+    <div class="fila" style="margin:0 0 4px"><input id="dMes" type="month"><select id="dUsuario"></select></div>
     <div id="dash"><p class="mut">Cargando…</p></div>
     <p id="estado" class="mut" style="margin-top:12px">Verificando…</p>
   </section>
@@ -131,6 +131,7 @@ nav button.activa{color:var(--pri)}
       <div class="fila"><input id="mMes" type="month"><button class="btn sec" id="mTodo" style="width:auto;margin:0;padding:0 16px">Todo</button></div>
       <div class="fila"><select id="mTipo"><option value="">Ingresos y gastos</option><option value="INGRESOS">Ingresos</option><option value="GASTOS">Gastos</option></select>
       <select id="mCat"><option value="">Todas las categorías</option></select></div>
+      <div class="fila"><select id="mUsuario"></select></div>
     </div>
     <p id="mTot" class="mut"></p>
     <div id="lista"></div>
@@ -158,7 +159,8 @@ nav button.activa{color:var(--pri)}
     </div>
   </section>
   <section class="vista" id="informes">
-    <div class="fila"><select id="iAnio"></select><button class="btn" id="bCsv" style="margin:0;width:auto;padding:0 16px">Exportar Excel</button></div>
+    <div class="fila" style="margin:0"><select id="iAnio"></select><select id="iUsuario"></select></div>
+    <button class="btn" id="bCsv" style="margin:10px 0 0">Exportar Excel</button>
     <div class="card" style="margin-top:12px;overflow-x:auto"><h4>Resumen anual (COP)</h4><table id="iTab"></table></div>
   </section>
   <section class="vista" id="ajustes">
@@ -317,13 +319,13 @@ async function cargarMovs(){
     movs.sort((x,y)=>(String(y.Fecha)+String(y.Creado)).localeCompare(String(x.Fecha)+String(x.Creado)));
     const sel=$('#mCat'),act=sel.value;
     sel.innerHTML='<option value="">Todas las categorías</option>'+[...new Set(movs.map(m=>m['Categoría']))].map(c=>'<option'+(c===act?' selected':'')+'>'+esc(c)+'</option>').join('');
-    pintarMovs();
+    llenarUsuarios();pintarMovs();
   }catch(e){l.innerHTML='<p class="err">No se pudieron cargar los movimientos. Revisa tu conexión.</p>'}
 }
 
 function pintarMovs(){
-  const q=norm($('#mQ').value),t=$('#mTipo').value,c=$('#mCat').value,mes=$('#mMes').value;
-  const f=movs.filter(m=>(!q||norm(m['Descripción']).includes(q))&&(!t||m._h===t)&&(!c||m['Categoría']===c)&&(!mes||String(m.Fecha).slice(0,7)===mes));
+  const q=norm($('#mQ').value),t=$('#mTipo').value,c=$('#mCat').value,mes=$('#mMes').value,u=usuarioSel;
+  const f=movs.filter(m=>(!q||norm(m['Descripción']).includes(q))&&(!t||m._h===t)&&(!c||m['Categoría']===c)&&(!u||m['Registrado por']===u)&&(!mes||String(m.Fecha).slice(0,7)===mes));
   let ing=0,gas=0;
   f.forEach(m=>{if(m.Estado!=='Pendiente'){if(m._h==='INGRESOS')ing+=Number(m.Valor);else gas+=Number(m.Valor)}});
   $('#mTot').innerHTML='Ingresos <b class="ok">'+cop(ing)+'</b> · Gastos <b class="err">'+cop(gas)+'</b> · '+f.length+' mov. (sin contar pendientes)';
@@ -400,7 +402,7 @@ async function cargarDash(){
     const r=await Promise.all(['INGRESOS','GASTOS','OBLIGACIONES','PRESUPUESTO'].map(h=>api('listar',{hoja:h})));
     if(r.some(x=>!x.ok))throw new Error('listar');
     D.ing=r[0].datos;D.gas=r[1].datos;D.obl=r[2].datos;D.pre=r[3].datos;
-    pintarDash();pintarInforme();
+    llenarUsuarios();pintarDash();pintarInforme();
   }catch(e){$('#dash').innerHTML='<div class="card err">No se pudo cargar el panel. Revisa tu conexión.</div>'}
 }
 const kpi=(n,v,c)=>'<div class="kpi"><small>'+n+'</small><b style="color:'+(c||'inherit')+'">'+cop(v)+'</b></div>';
@@ -409,7 +411,8 @@ const barra=(n,v,mx,c)=>'<div class="b"><span>'+n+'</span><div class="bt"><i sty
 function pintarDash(){
   const mes=$('#dMes').value;
   if(!mes)return;
-  const I=real(D.ing).filter(m=>mesDe(m)===mes),G=real(D.gas).filter(m=>mesDe(m)===mes);
+  const DI=delUsuario(D.ing),DG=delUsuario(D.gas);
+  const I=real(DI).filter(m=>mesDe(m)===mes),G=real(DG).filter(m=>mesDe(m)===mes);
   const ahorro=suma(G.filter(m=>!noAhorro(m))),G2=G.filter(noAhorro);
   const ti=suma(I),tg=suma(G2),bal=ti-tg-ahorro;
   const fijos=suma(G2.filter(m=>m.Tipo==='Fijo')),vars=suma(G2.filter(m=>m.Tipo==='Variable'));
@@ -436,15 +439,15 @@ function pintarDash(){
   h+='</div>';
 
   // 3) Evolución 6 meses
-  const ms=ultimosMeses(mes,6),gm=ms.map(k=>suma(real(D.gas).filter(m=>mesDe(m)===k&&noAhorro(m)))),mxg=Math.max.apply(null,gm.concat([1]));
+  const ms=ultimosMeses(mes,6),gm=ms.map(k=>suma(real(DG).filter(m=>mesDe(m)===k&&noAhorro(m)))),mxg=Math.max.apply(null,gm.concat([1]));
   h+='<div class="card"><h4>Gastos de los últimos 6 meses</h4><div class="cols">'+
     gm.map((v,i)=>'<div class="c"><small>'+(v?Math.round(v/1000)+'k':'')+'</small><i style="height:'+Math.round(v/mxg*110)+'px"></i><small>'+nomMes(ms[i])+'</small></div>').join('')+'</div></div>';
 
   // 4) Presupuesto vs real
   const P=D.pre.filter(x=>String(x.Mes).slice(0,7)===mes);
-  h+='<div class="card"><h4>Presupuesto vs gasto real</h4>';
+  h+='<div class="card"><h4>Presupuesto vs gasto real'+(usuarioSel?' (todo el hogar)':'')+'</h4>';
   if(P.length)h+=P.map(x=>{
-    const g=porCat[x['Categoría']]||0,lim=Number(x['Límite']||0),pc=lim?g/lim*100:0;
+    const g=suma(real(D.gas).filter(m=>mesDe(m)===mes&&m['Categoría']===x['Categoría'])),lim=Number(x['Límite']||0),pc=lim?g/lim*100:0;
     const col=pc>=100?'var(--gas)':pc>=80?'#f59e0b':'var(--ing)';
     return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-size:13px"><span>'+esc(x['Categoría'])+(pc>=100?' ⚠️ superado':pc>=80?' ⚠️ cerca del límite':'')+'</span><span>'+cop(g)+' / '+cop(lim)+'</span></div><div class="pb"><i style="width:'+Math.min(pc,100)+'%;background:'+col+'"></i></div></div>';
   }).join('');
@@ -452,7 +455,7 @@ function pintarDash(){
   h+='</div>';
 
   // 5) Movimientos recientes
-  const rec=D.ing.map(m=>Object.assign({_i:1},m)).concat(D.gas.map(m=>Object.assign({_i:0},m)))
+  const rec=DI.map(m=>Object.assign({_i:1},m)).concat(DG.map(m=>Object.assign({_i:0},m)))
     .sort((x,y)=>(String(y.Fecha)+String(y.Creado)).localeCompare(String(x.Fecha)+String(x.Creado))).slice(0,5);
   h+='<div class="card"><h4>Movimientos recientes</h4>'+(rec.map(m=>
     '<div class="mov" style="margin:6px 0"><div><b>'+esc(m['Descripción'])+'</b><div class="mut">'+esc(m['Categoría'])+' · '+esc(m.Fecha)+'</div></div><div class="v '+(m._i?'i':'g')+'">'+(m._i?'+':'−')+cop(m.Valor)+'</div></div>').join('')||'<p class="mut">Aún no hay movimientos.</p>')+'</div>';
@@ -512,7 +515,7 @@ function pintarInforme(){
   sel.innerHTML=ys.map(y=>'<option'+(y===act?' selected':'')+'>'+y+'</option>').join('');
   const y=sel.value;let T=[0,0,0,0],f='';
   for(let m=1;m<=12;m++){
-    const k=y+'-'+String(m).padStart(2,'0'),I=suma(real(D.ing).filter(x=>mesDe(x)===k)),Gs=real(D.gas).filter(x=>mesDe(x)===k);
+    const k=y+'-'+String(m).padStart(2,'0'),I=suma(real(delUsuario(D.ing)).filter(x=>mesDe(x)===k)),Gs=real(delUsuario(D.gas)).filter(x=>mesDe(x)===k);
     const A=suma(Gs.filter(x=>!noAhorro(x))),G=suma(Gs.filter(noAhorro)),B=I-G-A;
     T[0]+=I;T[1]+=G;T[2]+=A;T[3]+=B;
     if(I||G||A)f+='<tr><td>'+MESES[m-1]+'</td><td class="ok">'+nf(I)+'</td><td class="err">'+nf(G)+'</td><td>'+nf(A)+'</td><td>'+nf(B)+'</td></tr>';
@@ -525,16 +528,33 @@ const nf=n=>Number(n).toLocaleString('es-CO');
 $('#bCsv').onclick=()=>{
   const y=$('#iAnio').value;
   const f=[['Tipo','Fecha','Descripción','Categoría','Subcategoría','Valor','Medio o cuenta','Tipo de gasto','Estado','Registrado por','Observaciones']];
-  D.ing.filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Ingreso',m.Fecha,m['Descripción'],m['Categoría'],'',m.Valor,m.Cuenta,'',m.Estado,m['Registrado por'],m.Observaciones]));
-  D.gas.filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Gasto',m.Fecha,m['Descripción'],m['Categoría'],m['Subcategoría'],m.Valor,m['Medio de pago'],m.Tipo,m.Estado,m['Registrado por'],m.Observaciones]));
+  delUsuario(D.ing).filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Ingreso',m.Fecha,m['Descripción'],m['Categoría'],'',m.Valor,m.Cuenta,'',m.Estado,m['Registrado por'],m.Observaciones]));
+  delUsuario(D.gas).filter(m=>String(m.Fecha).slice(0,4)===y).forEach(m=>f.push(['Gasto',m.Fecha,m['Descripción'],m['Categoría'],m['Subcategoría'],m.Valor,m['Medio de pago'],m.Tipo,m.Estado,m['Registrado por'],m.Observaciones]));
   const csv='\ufeff'+f.map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(';')).join('\r\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download='finanzas_'+y+'.csv';a.click();
+  a.download='finanzas_'+y+(usuarioSel?'_'+usuarioSel:'')+'.csv';a.click();
 };
 $('#dMes').onchange=pintarDash;
 $('#iAnio').onchange=pintarInforme;
 $('#dMes').value=hoy().slice(0,7);
+
+/* ===== Filtro por usuario: se aplica en Inicio, Movimientos e Informes ===== */
+let usuarioSel=localStorage.getItem('usr')||'';
+const delUsuario=a=>usuarioSel?a.filter(m=>m['Registrado por']===usuarioSel):a;
+function llenarUsuarios(){
+  const us=[...new Set(movs.concat(D.ing,D.gas).map(m=>m['Registrado por']).filter(Boolean))].sort();
+  if(usuarioSel&&us.indexOf(usuarioSel)<0)us.push(usuarioSel);
+  ['#mUsuario','#dUsuario','#iUsuario'].forEach(id=>{
+    $(id).innerHTML='<option value="">Todos los usuarios</option>'+us.map(u=>'<option'+(u===usuarioSel?' selected':'')+'>'+esc(u)+'</option>').join('');
+  });
+}
+function cambiarUsuario(v){
+  usuarioSel=v;localStorage.setItem('usr',v);
+  llenarUsuarios();pintarMovs();pintarDash();pintarInforme();
+}
+['#mUsuario','#dUsuario','#iUsuario'].forEach(id=>$(id).onchange=e=>cambiarUsuario(e.target.value));
+llenarUsuarios();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body></html>
